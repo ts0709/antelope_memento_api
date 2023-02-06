@@ -110,6 +110,60 @@ Optional arguments same as in `/get_account_history`, plus:
 
 
 
+## GraphQL API
+
+The GraphQL interface is accessible at `/graphql` location from the
+base URL (e.g. `https://memento.eu.eosamsterdam.net/wax/graphql`). It
+allows performing the same requests as in the RESTful API.
+
+
+### Types
+
+* `health_status`:
+  - `status: Boolean!`
+  - `msg: String!`
+
+* `transaction_status`:
+  - `known: Boolean!`
+  - `irreversible: Boolean!`
+  - `block_num: String!`
+  - `block_time: String!`
+  - `data: GraphQLJSON!`
+
+* `history_data`:
+  - `last_irreversible_block: Unsigned Int!`
+  - `data: [GraphQLJSON]!`
+
+### Queries
+
+The following queries are supported:
+
+* `health`: returns `health_status`
+
+* `account_history`: returns `history_data`
+  - `account: String!`
+  - `irreversible: Boolean`
+  - `block_num_min: Int`
+  - `block_num_max: Int`
+  - `block_time_min: String`
+  - `block_time_max: String`
+  - `count: Int`
+
+* `contract_history`: returns `history_data`
+  - `contract: String!`
+  - `irreversible: Boolean`
+  - `block_num_min: Int`
+  - `block_num_max: Int`
+  - `block_time_min: String`
+  - `block_time_max: String`
+  - `count: Int`
+
+* `transaction`: returns transaction_status
+  - `trx_id: String!`
+
+
+
+
 ## Installation
 
 ```
@@ -192,6 +246,8 @@ CPU_CORES = 2   // number of cpu cores, value should not exceed max number of co
 MAX_RECORD_COUNT = 10  // maximum number of records that can be returned in a single request
 
 ```
+
+
 
 # Acknowledgments
 This work was sponsored by EOS Amsterdam block producer.
