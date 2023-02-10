@@ -38,9 +38,9 @@ if the database is operational, but not up to date.
 
 Arguments: none.
 
-Returns a JSON object with `status` and `errormsg` fields.  Status is
-boolean, and if it's false, errormsg is mandatory and explaining the
-problem.
+Returns a JSON object with `status` and `diff` fields.  Status is
+boolean and `diff` indicates how long in milliseconds the database is
+behind the real time.
 
 ### `/get_transaction`
 
@@ -119,16 +119,12 @@ allows performing the same requests as in the RESTful API.
 
 ### Types
 
-* `health_status`:
-  - `status: Boolean!`
-  - `msg: String!`
-
 * `transaction_status`:
   - `known: Boolean!`
-  - `irreversible: Boolean!`
-  - `block_num: String!`
-  - `block_time: String!`
-  - `data: GraphQLJSON!`
+  - `irreversible: Boolean`
+  - `block_num: String`
+  - `block_time: String`
+  - `data: GraphQLJSON`
 
 * `history_data`:
   - `last_irreversible_block: Unsigned Int!`
@@ -137,8 +133,6 @@ allows performing the same requests as in the RESTful API.
 ### Queries
 
 The following queries are supported:
-
-* `health`: returns `health_status`
 
 * `account_history`: returns `history_data`
   - `account: String!`
@@ -252,4 +246,4 @@ MAX_RECORD_COUNT = 10  // maximum number of records that can be returned in a si
 # Acknowledgments
 This work was sponsored by EOS Amsterdam block producer.
 
-Copyright 2023 Raj Kumar (raj.rpt@gmail.com)
+Copyright 2023 Raj Kumar (raj.rpt@gmail.com), cc32d9 (cc32d9@gmail.com)

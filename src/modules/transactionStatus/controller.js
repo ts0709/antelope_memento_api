@@ -1,160 +1,70 @@
 const constant = require("../../constants/config");
-const db       = require("../../utilities/db");
+const db = require("../../utilities/db");
 
-var controller = function(){
-};
+const trxidRegex = new RegExp(/[0-9a-f]{64}/);
 
-controller.getIrreversibleBlockNumber = ()=>{
 
-  return new Promise((resolve) => {
+var controller = function() {};
 
-    let query = "select irreversible from SYNC";
-    db.ExecuteQuery(query, (data)=>{
-      if(data.status == 'error')
-      {
-        console.log(data.msg);
-        resolve({status:'error'});
-      }
-      else
-      {
-        if(data.data.length > 0)
-        {
-          let rec = data.data[0];
-          resolve({status:'success', irreversible: parseInt(rec.irreversible)});
-        }
-        else
-        {
-          resolve({status:'error'});
-        }
-      }
-    });
-  });
+async function readTransaction(trx_id, skip_trace) {
+    if (!trxidRegex.test(trx_id)) {
+        return Promise.reject(new Error("invalid trx_id"));
+    }
+
+    let results = await Promise.all(
+        [db.GetIrreversibleBlockNumber(),
+            db.ExecuteQueryAsync("select block_num, block_time" +
+                (skip_trace ? "" : ", trace") +
+                " from TRANSACTIONS where trx_id='" + trx_id + "'")
+        ]);
+
+    if (results[1].length > 0) {
+        let rec = results[1][0];
+        rec.irreversible = (rec.block_num <= results[0]) ? true : false;
+        rec.known = true;
+        return rec;
+    } else {
+        return {
+            known: false
+        };
+    }
 }
 
-controller.getTransactionInfo = async (trx_id)=>{
-  return new Promise((resolve) => {
-    let query = "select block_num, block_time, trace from TRANSACTIONS where trx_id='" + trx_id + "'";
-    db.ExecuteQuery(query, (data)=>{
-      if(data.status == 'error')
-      {
-        console.log(data.msg);
-        resolve({code: constant.HTTP_500_CODE, "errormsg":data.msg, data:[]});
-      }
-      else
-      {
-        if(data.data.length > 0)
-        {
-          let rec = data.data[0];
-          controller.getIrreversibleBlockNumber().then( data=>{
-            if(data.status == 'success')
-            {
-              let irreversible = rec.block_num > data.irreversible ? false : true;
-              resolve({code: constant.HTTP_200_CODE, known: false, irreversible:irreversible,
-                block_num: rec.block_num, block_time: rec.block_time, "errormsg":"", data:rec.trace});
-            }
-            else
-            {
-              resolve({code: constant.HTTP_500_CODE, "errormsg":constant.DB_READ_ERROR, data:[]});
-            }
-          });
-        }
-        else
-        {
-          resolve({code: constant.HTTP_200_CODE, known: false, irreversible: false, block_num: 0, block_time:"0", "errormsg":"Record not found", data:[]});
-        }
-      }
-    });
-  });
-};
 
-controller.get_transaction = async (req, res)=>{
-  let trx_id = req.query["trx_id"] || "";
-
-  if(trx_id == "")
-  {
-    res.status(constant.HTTP_400_CODE).send({"errormsg":constant.MSG_INCORRECT_PARAM + ' trx_id'});
-    return;
-  }
-
-  let query = "select block_num, block_time, trace from TRANSACTIONS where trx_id='" + trx_id + "'";
-  db.ExecuteQuery(query, (data)=>{
-    if(data.status == 'error')
-    {
-      console.log(data.msg);
-      res.status(constant.HTTP_500_CODE).send({"errormsg":data.msg});
-    }
-    else
-    {
-      if(data.data.length > 0)
-      {
-        let rec = data.data[0];
-        controller.getIrreversibleBlockNumber().then( data=>{
-          if(data.status == 'success')
-          {
-            res.status(constant.HTTP_200_CODE);
-            res.write('{\"known\":true, \"irreversible\":' + (rec.block_num > data.irreversible ? 'false':'true') +
-            ',\"data\":');
+// expressjs handlers
+controller.get_transaction = async (req, res) => {
+    readTransaction(req.query["trx_id"]).then(rec => {
+        res.status(constant.HTTP_200_CODE);
+        if (rec.known) {
+            res.write('{\"known\": true ' +
+                ', \"irreversible\": ' + rec.irreversible +
+                ',\"data\":');
             res.write(rec.trace);
             res.write('}');
             res.end();
-          }
-          else
-          {
-            res.status(constant.HTTP_500_CODE).send({"errormsg":constant.DB_READ_ERROR});
-          }
-        });
-      }
-      else
-      {
-        res.status(constant.HTTP_200_CODE).send({known: false});
-      }
-    }
-  });
+        } else {
+            res.send(rec);
+        }
+    });
 }
 
-controller.get_transaction_status = async (req, res)=>{
-
-  let trx_id = req.query["trx_id"] || "";
-
-  if(trx_id == "")
-  {
-    res.status(constant.HTTP_400_CODE).send({"errormsg":constant.MSG_INCORRECT_PARAM + ' trx_id'});
-    return;
-  }
-
-  let query = "select block_num, block_time from TRANSACTIONS where trx_id='" + trx_id + "'";
-  db.ExecuteQuery(query, (data)=>{
-    if(data.status == 'error')
-    {
-      console.log(data.msg);
-      res.status(constant.HTTP_500_CODE).send({"errormsg":data.msg});
-    }
-    else
-    {
-      if(data.data.length > 0)
-      {
-        let rec = data.data[0];
-        controller.getIrreversibleBlockNumber().then(data=>{
-          if(data.status == 'success')
-          {
-            res.status(constant.HTTP_200_CODE).send({
-              known: true,
-              irreversible: (rec.block_num > data.irreversible ? false:true),
-              block_num: rec.block_num,
-              block_time: rec.block_time});
-            }
-            else
-            {
-              res.status(constant.HTTP_500_CODE).send({"errormsg":constant.DB_READ_ERROR});
-            }
-          });
-        }
-        else
-        {
-          res.status(constant.HTTP_200_CODE).send({known: false});
-        }
-      }
+controller.get_transaction_status = async (req, res) => {
+    readTransaction(req.query["trx_id"], true).then(rec => {
+        res.status(constant.HTTP_200_CODE);
+        res.send(rec);
     });
-  }
+}
 
-  module.exports = controller;
+
+// graphQL handler
+controller.graphql_get_transaction = async (trx_id) => {
+    const rec = await readTransaction(trx_id);
+    if (rec.trace != null) {
+        rec.data = JSON.parse(rec.trace.toString('utf8'));
+        delete rec.trace;
+    }
+    return rec;
+}
+
+
+module.exports = controller;
